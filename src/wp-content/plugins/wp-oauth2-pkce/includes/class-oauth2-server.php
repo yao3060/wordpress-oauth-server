@@ -17,6 +17,7 @@ class OAuth2_Server {
     private $resource_server;
     private $private_key_path;
     private $public_key_path;
+    private $encryption_key;
     
     public function __construct() {
         $this->setup_keys();
@@ -31,13 +32,17 @@ class OAuth2_Server {
         // Get keys from environment variables
         $private_key = $_ENV['OAUTH_PRIVATE_KEY'] ?? getenv('OAUTH_PRIVATE_KEY');
         $public_key = $_ENV['OAUTH_PUBLIC_KEY'] ?? getenv('OAUTH_PUBLIC_KEY');
+        $encryption_key = $_ENV['OAUTH_ENCRYPTION_KEY'] ?? getenv('OAUTH_ENCRYPTION_KEY');
         
-        if (!$private_key || !$public_key) {
-            throw new Exception('OAuth RSA keys not found in environment variables. Please set OAUTH_PRIVATE_KEY and OAUTH_PUBLIC_KEY in .env file.');
+        if (!$private_key || !$public_key || !$encryption_key) {
+            throw new Exception('OAuth RSA keys not found in environment variables. 
+            Please set OAUTH_PRIVATE_KEY, OAUTH_PUBLIC_KEY and OAUTH_ENCRYPTION_KEY in .env file.');
         }
         
         $this->private_key_path = $private_key;
         $this->public_key_path = $public_key;
+        $this->encryption_key = $encryption_key;
+
     
     }
 
@@ -59,7 +64,7 @@ class OAuth2_Server {
             $access_token_repository,
             $scope_repository,
             $this->private_key_path,
-            wp_generate_password(32, false) // Encryption key
+            $this->encryption_key
         );
         
         // Enable authorization code grant with PKCE

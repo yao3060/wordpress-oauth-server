@@ -13,3 +13,6 @@ src/wp-content/debug.log
 # OS files
 .DS_Store
 Thumbs.db
+private.key
+public.key
+src/wp

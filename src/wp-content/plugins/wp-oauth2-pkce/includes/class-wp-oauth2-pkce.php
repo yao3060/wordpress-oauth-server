@@ -96,7 +96,7 @@ class WP_OAuth2_PKCE {
         // OAuth2 Authorization Codes table
         $auth_codes_table = $wpdb->prefix . 'oauth2_authorization_codes';
         $auth_codes_sql = "CREATE TABLE $auth_codes_table (
-            authorization_code varchar(40) NOT NULL,
+            authorization_code varchar(255) NOT NULL,
             client_id varchar(80) NOT NULL,
             user_id bigint(20) NOT NULL,
             redirect_uri text NOT NULL,
@@ -111,7 +111,7 @@ class WP_OAuth2_PKCE {
         // OAuth2 Access Tokens table
         $access_tokens_table = $wpdb->prefix . 'oauth2_access_tokens';
         $access_tokens_sql = "CREATE TABLE $access_tokens_table (
-            access_token varchar(40) NOT NULL,
+            access_token varchar(255) NOT NULL,
             client_id varchar(80) NOT NULL,
             user_id bigint(20) NOT NULL,
             expires datetime NOT NULL,
@@ -123,7 +123,7 @@ class WP_OAuth2_PKCE {
         // OAuth2 Refresh Tokens table
         $refresh_tokens_table = $wpdb->prefix . 'oauth2_refresh_tokens';
         $refresh_tokens_sql = "CREATE TABLE $refresh_tokens_table (
-            refresh_token varchar(40) NOT NULL,
+            refresh_token varchar(255) NOT NULL,
             client_id varchar(80) NOT NULL,
             user_id bigint(20) NOT NULL,
             expires datetime NOT NULL,
