@@ -143,6 +143,44 @@ class OAuth2_Server {
             // Set the user on the authorization request
             $auth_request->setUser($user_entity);
             
+            // Conditional auto-approve based on whitelist domains
+            // Read comma-separated domains from env: OAUTH_WHITELIST="localhost,docker.local"
+            $whitelist_env = $_ENV['OAUTH_WHITELIST'] ?? getenv('OAUTH_WHITELIST');
+            if (!empty($whitelist_env)) {
+                $whitelist = array_filter(array_map(function($d) { return strtolower(trim($d)); }, explode(',', $whitelist_env)));
+                
+                // Extract hostname from the validated redirect URI of this authorization request
+                $requested_redirect = method_exists($auth_request, 'getRedirectUri') ? $auth_request->getRedirectUri() : null;
+                $requested_host = $requested_redirect ? parse_url($requested_redirect, PHP_URL_HOST) : null;
+                $requested_host = $requested_host ? strtolower($requested_host) : null;
+                
+                // If host is whitelisted, auto-approve and complete immediately
+                if ($requested_host && in_array($requested_host, $whitelist, true)) {
+                    error_log('OAuth2: Auto-approving authorization for whitelisted host: ' . $requested_host);
+                    $auth_request->setAuthorizationApproved(true);
+                    
+                    // Complete the authorization request
+                    $response = $this->authorization_server->completeAuthorizationRequest($auth_request, $response);
+                    
+                    // Redirect back to client
+                    if ($response->getStatusCode() === 302) {
+                        $location = $response->getHeaderLine('Location');
+                        error_log('OAuth2: Auto-approve redirecting to: ' . $location);
+                        wp_redirect($location);
+                        exit;
+                    } else {
+                        http_response_code($response->getStatusCode());
+                        foreach ($response->getHeaders() as $name => $values) {
+                            foreach ($values as $value) {
+                                header(sprintf('%s: %s', $name, $value), false);
+                            }
+                        }
+                        echo $response->getBody();
+                        exit;
+                    }
+                }
+            }
+            
             // Check if this is a POST request (user approved/denied)
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Debug: Log POST data
