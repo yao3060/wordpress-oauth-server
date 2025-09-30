@@ -1,0 +1,9 @@
+{
+    "require": {
+        "league/oauth2-server": "^9.2",
+        "guzzlehttp/guzzle": "^7.0",
+        "wp-cli/wp-cli": "^2.12",
+        "laminas/laminas-diactoros": "^3.0",
+        "symfony/var-dumper": "^7.3"
+    }
+}
