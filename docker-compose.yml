@@ -1,0 +1,43 @@
+services:
+
+  wordpress:
+    image: wordpress
+    restart: "no"
+    ports:
+      - 8080:80
+    depends_on:
+      - db
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_PASSWORD: root
+      WORDPRESS_DB_NAME: domain
+    env_file:
+      - .env
+    volumes:
+      - ./src:/var/www/html
+
+  db:
+    image: mysql:8
+    restart: "no"
+    environment:
+      MYSQL_DATABASE: domain
+      MYSQL_ROOT_PASSWORD: root
+    command: --disable-log-bin
+    volumes:
+      - wp-db:/var/lib/mysql
+
+  adminer:
+    image: adminer:4.8.1
+    restart: "no"
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=db
+      # - ADMINER_DESIGN=hydra
+      - ADMINER_PLUGINS=tables-filter tinymce
+    depends_on:
+      - db
+
+volumes:
+  wp-db:

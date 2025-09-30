@@ -1,0 +1,15 @@
+# Environment files
+.env
+
+# Composer vendor directory
+src/vendor/
+
+# OAuth2 keys directory (keys are loaded from .env)
+src/wp-content/plugins/wp-oauth2-pkce/keys/
+
+# WordPress debug log
+src/wp-content/debug.log
+
+# OS files
+.DS_Store
+Thumbs.db
