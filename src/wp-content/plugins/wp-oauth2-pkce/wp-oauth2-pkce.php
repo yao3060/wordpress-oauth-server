@@ -3,7 +3,7 @@
  * Plugin Name: WordPress OAuth2 PKCE Server
  * Description: OAuth2 Server with PKCE support for WordPress using League OAuth2 Server
  * Version: 1.0.0
- * Author: Your Name
+ * Author: YaoYingying
  * License: MIT
  */
 
