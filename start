@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -aeuo pipefail
+
+# create the dotenv file if it doesn't exist
+if [ ! -f .env ]; then
+  cp .env.example .env
+fi
+
+source .env
+
+export HOST_UID=$(id -u)
+export HOST_GID=$(id -g)
+
+docker compose up $@

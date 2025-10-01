@@ -1,8 +1,8 @@
 services:
-
   wordpress:
     image: wordpress
     restart: "no"
+    user: "${HOST_UID}:${HOST_GID}"
     ports:
       - 8080:80
     depends_on:
