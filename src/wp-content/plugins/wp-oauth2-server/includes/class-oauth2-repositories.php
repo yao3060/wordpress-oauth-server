@@ -143,7 +143,10 @@ class AccessTokenRepository implements AccessTokenRepositoryInterface {
         foreach ($scopes as $scope) {
             $accessToken->addScope($scope);
         }
-        $accessToken->setUserIdentifier($userIdentifier);
+        // In client credentials grant, there is no user; avoid passing null to setter
+        if ($userIdentifier !== null) {
+            $accessToken->setUserIdentifier((string)$userIdentifier);
+        }
         
         return $accessToken;
     }

@@ -1,6 +1,6 @@
 <?php
 
-class WP_OAuth2_PKCE {
+class WP_OAuth2_Server {
     
     private $oauth2_server;
     
@@ -64,8 +64,8 @@ class WP_OAuth2_PKCE {
      */
     public function enqueue_scripts() {
         if (get_query_var('oauth2_endpoint') === 'authorize') {
-            wp_enqueue_script('wp-oauth2-pkce', WP_OAUTH2_PKCE_PLUGIN_URL . 'assets/js/oauth2-authorize.js', array('jquery'), WP_OAUTH2_PKCE_VERSION, true);
-            wp_enqueue_style('wp-oauth2-pkce', WP_OAUTH2_PKCE_PLUGIN_URL . 'assets/css/oauth2-authorize.css', array(), WP_OAUTH2_PKCE_VERSION);
+            wp_enqueue_script('wp-oauth2-server', WP_OAUTH2_SERVER_PLUGIN_URL . 'assets/js/oauth2-authorize.js', array('jquery'), WP_OAUTH2_SERVER_VERSION, true);
+            wp_enqueue_style('wp-oauth2-server', WP_OAUTH2_SERVER_PLUGIN_URL . 'assets/css/oauth2-authorize.css', array(), WP_OAUTH2_SERVER_VERSION);
         }
     }
     
@@ -113,7 +113,7 @@ class WP_OAuth2_PKCE {
         $access_tokens_sql = "CREATE TABLE $access_tokens_table (
             access_token varchar(255) NOT NULL,
             client_id varchar(80) NOT NULL,
-            user_id bigint(20) NOT NULL,
+            user_id bigint(20) DEFAULT NULL,
             expires datetime NOT NULL,
             scope varchar(255) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -125,7 +125,7 @@ class WP_OAuth2_PKCE {
         $refresh_tokens_sql = "CREATE TABLE $refresh_tokens_table (
             refresh_token varchar(255) NOT NULL,
             client_id varchar(80) NOT NULL,
-            user_id bigint(20) NOT NULL,
+            user_id bigint(20) DEFAULT NULL,
             expires datetime NOT NULL,
             scope varchar(255) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,

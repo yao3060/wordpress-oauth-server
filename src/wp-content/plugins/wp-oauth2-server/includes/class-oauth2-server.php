@@ -4,6 +4,7 @@ use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\ResourceServer;
 use League\OAuth2\Server\Grant\AuthCodeGrant;
 use League\OAuth2\Server\Grant\RefreshTokenGrant;
+use League\OAuth2\Server\Grant\ClientCredentialsGrant;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequest;
 use Psr\Http\Message\ServerRequestInterface;
@@ -78,19 +79,25 @@ class OAuth2_Server {
         // No additional configuration needed
         
         // Set token TTLs
-        $auth_code_grant->setRefreshTokenTTL(new DateInterval('P1M')); // 1 month
         
         $this->authorization_server->enableGrantType(
             $auth_code_grant,
             new DateInterval('PT1H') // Access tokens expire after 1 hour
         );
-        
+
         // Enable refresh token grant
         $refresh_grant = new RefreshTokenGrant($refresh_token_repository);
         $refresh_grant->setRefreshTokenTTL(new DateInterval('P1M'));
         
         $this->authorization_server->enableGrantType(
             $refresh_grant,
+            new DateInterval('PT1H')
+        );
+
+        // Enable client credentials grant (no user context)
+        $client_credentials_grant = new ClientCredentialsGrant();
+        $this->authorization_server->enableGrantType(
+            $client_credentials_grant,
             new DateInterval('PT1H')
         );
     }
@@ -315,7 +322,7 @@ class OAuth2_Server {
         $scopes = $auth_request->getScopes();
         
         // Get template
-        include WP_OAUTH2_PKCE_PLUGIN_DIR . 'templates/authorize.php';
+        include WP_OAUTH2_SERVER_PLUGIN_DIR . 'templates/authorize.php';
         exit;
     }
     

@@ -65,7 +65,7 @@
         </label>
         <label>
             Client ID:
-            <input type="text" id="clientId" value="KP2OPCqVe8dM87M2ebluGJs1ZCKiJnWc" placeholder="Your OAuth2 Client ID">
+            <input type="text" id="clientId" value="mtNidTPa0i6oE7wmIwBrBOeWOAYxr6Vd" placeholder="Your OAuth2 Client ID">
         </label>
         <label>
             Redirect URI:
@@ -77,6 +77,15 @@
         <h3>Step 1: Start Authorization</h3>
         <p>Click the button below to start the PKCE OAuth2 flow:</p>
         <button onclick="startAuthorization()">Authorize with WordPress</button>
+    </div>
+    
+    <div class="container">
+        <h3>Step 2: Refresh Token Test</h3>
+        <p>Use the stored refresh_token to obtain a new access_token.</p>
+        <button onclick="refreshAccessToken()">Refresh Access Token</button>
+        <button onclick="callUserInfoWithStoredToken()">Call UserInfo (Stored Access Token)</button>
+        <button onclick="clearTokens()">Clear Stored Tokens</button>
+        <div id="tokenStatus" style="margin-top:10px;"></div>
     </div>
     
     <div class="container info">
@@ -186,7 +195,13 @@
                     throw new Error(error.error_description || error.error || 'Token exchange failed');
                 }
                 
-                return await response.json();
+                const data = await response.json();
+                // Store tokens for refresh testing
+                if (data.access_token) localStorage.setItem('oauth2_access_token', data.access_token);
+                if (data.refresh_token) localStorage.setItem('oauth2_refresh_token', data.refresh_token);
+                if (data.expires_in) localStorage.setItem('oauth2_expires_in', String(data.expires_in));
+                updateTokenStatus();
+                return data;
             }
             
             // Get user information
@@ -229,6 +244,94 @@
                 
             } catch (error) {
                 showError('Error starting authorization: ' + error.message);
+            }
+        }
+
+        async function refreshAccessToken() {
+            try {
+                const baseUrl = document.getElementById('baseUrl').value.trim();
+                const clientId = document.getElementById('clientId').value.trim();
+                const refreshToken = localStorage.getItem('oauth2_refresh_token');
+                if (!baseUrl || !clientId) {
+                    showError('Please fill in Base URL and Client ID');
+                    return;
+                }
+                if (!refreshToken) {
+                    showError('No refresh_token found. Complete Step 1 first.');
+                    return;
+                }
+                const tokenEndpoint = baseUrl + '/oauth2/token';
+                const params = new URLSearchParams({
+                    grant_type: 'refresh_token',
+                    refresh_token: refreshToken,
+                    client_id: clientId
+                });
+                const response = await fetch(tokenEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error_description || error.error || 'Refresh token request failed');
+                }
+                const data = await response.json();
+                if (data.access_token) localStorage.setItem('oauth2_access_token', data.access_token);
+                if (data.refresh_token) localStorage.setItem('oauth2_refresh_token', data.refresh_token);
+                if (data.expires_in) localStorage.setItem('oauth2_expires_in', String(data.expires_in));
+                updateTokenStatus();
+                showSuccess('Access token refreshed successfully');
+                showResult('Refresh Token Response', data);
+            } catch (err) {
+                showError('Refresh failed: ' + err.message);
+            }
+        }
+
+        async function callUserInfoWithStoredToken() {
+            try {
+                const baseUrl = document.getElementById('baseUrl').value.trim();
+                const clientId = document.getElementById('clientId').value.trim();
+                const redirectUri = document.getElementById('redirectUri').value.trim();
+                const accessToken = localStorage.getItem('oauth2_access_token');
+                if (!baseUrl || !clientId || !redirectUri) {
+                    showError('Please fill in all configuration fields');
+                    return;
+                }
+                if (!accessToken) {
+                    showError('No access_token found. Complete Step 1 or refresh first.');
+                    return;
+                }
+                if (!client) {
+                    client = new PKCEClient(clientId, redirectUri, baseUrl);
+                }
+                const userInfo = await client.getUserInfo(accessToken);
+                showResult('User Information (Stored Token)', userInfo);
+            } catch (err) {
+                showError('UserInfo failed: ' + err.message);
+            }
+        }
+
+        function clearTokens() {
+            localStorage.removeItem('oauth2_access_token');
+            localStorage.removeItem('oauth2_refresh_token');
+            localStorage.removeItem('oauth2_expires_in');
+            updateTokenStatus();
+            showInfo('Stored tokens cleared');
+        }
+
+        function updateTokenStatus() {
+            const access = localStorage.getItem('oauth2_access_token');
+            const refresh = localStorage.getItem('oauth2_refresh_token');
+            const expires = localStorage.getItem('oauth2_expires_in');
+            const el = document.getElementById('tokenStatus');
+            if (!el) return;
+            if (access || refresh) {
+                el.innerHTML = `<strong>Stored Tokens:</strong><br>
+                    access_token: ${access ? 'present' : 'none'}<br>
+                    refresh_token: ${refresh ? 'present' : 'none'}<br>
+                    expires_in: ${expires || 'n/a'}`;
+            } else {
+                el.innerHTML = '<em>No tokens stored.</em>';
             }
         }
         
@@ -311,6 +414,7 @@
                 console.log('handleCallback', window.location.search);
                 handleCallback();
             }
+            updateTokenStatus();
         });
         
         // Store config in localStorage when changed
