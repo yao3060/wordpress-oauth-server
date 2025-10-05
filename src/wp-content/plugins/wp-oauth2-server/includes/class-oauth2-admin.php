@@ -181,8 +181,16 @@ class OAuth2_Admin {
                             <td><code><?php echo esc_url(site_url('/oauth2/token')); ?></code></td>
                         </tr>
                         <tr>
+                            <td><strong><?php _e('Token URL (REST):', 'wp-oauth2-server'); ?></strong></td>
+                            <td><code><?php echo esc_url(site_url('/wp-json/oauth2/v1/token')); ?></code></td>
+                        </tr>
+                        <tr>
                             <td><strong><?php _e('UserInfo URL:', 'wp-oauth2-server'); ?></strong></td>
                             <td><code><?php echo esc_url(site_url('/oauth2/userinfo')); ?></code></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e('UserInfo URL (REST):', 'wp-oauth2-server'); ?></strong></td>
+                            <td><code><?php echo esc_url(site_url('/wp-json/oauth2/v1/userinfo')); ?></code></td>
                         </tr>
                     </table>
                 </div>
