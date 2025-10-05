@@ -33,6 +33,17 @@ class OAuth2_Admin {
             return;
         }
         
+        // Handle settings save (issuer)
+        if (isset($_POST['save_settings']) && isset($_POST['oauth2_nonce']) && wp_verify_nonce($_POST['oauth2_nonce'], 'save_oauth2_settings')) {
+            $issuer = isset($_POST['oauth2_issuer']) ? sanitize_text_field($_POST['oauth2_issuer']) : '';
+            if (empty($issuer)) {
+                add_settings_error('oauth2_server', 'issuer_empty', __('Issuer (iss) cannot be empty.', 'wp-oauth2-server'));
+            } else {
+                update_option('oauth2_issuer', $issuer);
+                add_settings_error('oauth2_server', 'settings_saved', __('Settings saved.', 'wp-oauth2-server'), 'success');
+            }
+        }
+        
         // Handle client creation
         if (isset($_POST['create_client']) && wp_verify_nonce($_POST['oauth2_nonce'], 'create_client')) {
             $this->create_client();
@@ -134,6 +145,7 @@ class OAuth2_Admin {
     public function admin_page() {
         $clients = $this->get_clients();
         $new_client = null;
+        $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'clients';
         
         // Check for newly created client
         foreach ($clients as $client) {
@@ -150,120 +162,145 @@ class OAuth2_Admin {
             <h1><?php _e('OAuth2 Server Settings', 'wp-oauth2-server'); ?></h1>
             
             <?php settings_errors('oauth2_server'); ?>
-            
-            <?php if ($new_client): ?>
-            <div class="notice notice-info">
-                <h3><?php _e('New Client Created', 'wp-oauth2-server'); ?></h3>
-                <p><strong><?php _e('Client ID:', 'wp-oauth2-server'); ?></strong> <code><?php echo esc_html($new_client['client_id']); ?></code></p>
-                <?php if ($new_client['client_secret']): ?>
-                <p><strong><?php _e('Client Secret:', 'wp-oauth2-server'); ?></strong> <code><?php echo esc_html($new_client['client_secret']); ?></code></p>
-                <?php endif; ?>
-                <p class="description"><?php _e('Please save these credentials securely. The client secret will not be shown again.', 'wp-oauth2-server'); ?></p>
-            </div>
-            <?php endif; ?>
-            
-            <div class="oauth2-info-box">
-                <h3><?php _e('OAuth2 Endpoints', 'wp-oauth2-server'); ?></h3>
-                <table class="widefat">
-                    <tr>
-                        <td><strong><?php _e('Authorization URL:', 'wp-oauth2-server'); ?></strong></td>
-                        <td><code><?php echo esc_url(site_url('/oauth2/authorize')); ?></code></td>
-                    </tr>
-                    <tr>
-                        <td><strong><?php _e('Token URL:', 'wp-oauth2-server'); ?></strong></td>
-                        <td><code><?php echo esc_url(site_url('/oauth2/token')); ?></code></td>
-                    </tr>
-                    <tr>
-                        <td><strong><?php _e('UserInfo URL:', 'wp-oauth2-server'); ?></strong></td>
-                        <td><code><?php echo esc_url(site_url('/oauth2/userinfo')); ?></code></td>
-                    </tr>
-                </table>
-            </div>
-            
-            <h2><?php _e('Create New OAuth2 Client', 'wp-oauth2-server'); ?></h2>
-            
-            <form method="post" class="oauth2-client-form">
-                <?php wp_nonce_field('create_client', 'oauth2_nonce'); ?>
-                
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">
-                            <label for="client_name"><?php _e('Client Name', 'wp-oauth2-server'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text" id="client_name" name="client_name" class="regular-text" required>
-                            <p class="description"><?php _e('A human-readable name for this OAuth2 client.', 'wp-oauth2-server'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="redirect_uri"><?php _e('Redirect URI', 'wp-oauth2-server'); ?></label>
-                        </th>
-                        <td>
-                            <input type="url" id="redirect_uri" name="redirect_uri" class="regular-text" required>
-                            <p class="description"><?php _e('The URL where users will be redirected after authorization.', 'wp-oauth2-server'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="is_confidential"><?php _e('Client Type', 'wp-oauth2-server'); ?></label>
-                        </th>
-                        <td>
-                            <label>
-                                <input type="checkbox" id="is_confidential" name="is_confidential" value="1">
-                                <?php _e('Confidential Client', 'wp-oauth2-server'); ?>
-                            </label>
-                            <p class="description"><?php _e('Check this for server-side applications that can securely store a client secret. Leave unchecked for public clients (mobile apps, SPAs) using PKCE.', 'wp-oauth2-server'); ?></p>
-                        </td>
-                    </tr>
-                </table>
-                
-                <?php submit_button(__('Create Client', 'wp-oauth2-server'), 'primary', 'create_client'); ?>
-            </form>
-            
-            <h2><?php _e('Existing OAuth2 Clients', 'wp-oauth2-server'); ?></h2>
-            
-            <?php if (empty($clients)): ?>
-                <p><?php _e('No OAuth2 clients found.', 'wp-oauth2-server'); ?></p>
+
+            <h2 class="nav-tab-wrapper">
+                <a href="<?php echo esc_url(admin_url('options-general.php?page=oauth2-server&tab=settings')); ?>" class="nav-tab <?php echo $active_tab === 'settings' ? 'nav-tab-active' : ''; ?>"><?php _e('Settings', 'wp-oauth2-server'); ?></a>
+                <a href="<?php echo esc_url(admin_url('options-general.php?page=oauth2-server&tab=clients')); ?>" class="nav-tab <?php echo $active_tab === 'clients' ? 'nav-tab-active' : ''; ?>"><?php _e('Clients', 'wp-oauth2-server'); ?></a>
+            </h2>
+
+            <?php if ($active_tab === 'settings'): ?>
+                <div class="oauth2-info-box">
+                    <h3><?php _e('OAuth2 Endpoints', 'wp-oauth2-server'); ?></h3>
+                    <table class="widefat">
+                        <tr>
+                            <td><strong><?php _e('Authorization URL:', 'wp-oauth2-server'); ?></strong></td>
+                            <td><code><?php echo esc_url(site_url('/oauth2/authorize')); ?></code></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e('Token URL:', 'wp-oauth2-server'); ?></strong></td>
+                            <td><code><?php echo esc_url(site_url('/oauth2/token')); ?></code></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e('UserInfo URL:', 'wp-oauth2-server'); ?></strong></td>
+                            <td><code><?php echo esc_url(site_url('/oauth2/userinfo')); ?></code></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <h2><?php _e('General Settings', 'wp-oauth2-server'); ?></h2>
+                <form method="post">
+                    <?php wp_nonce_field('save_oauth2_settings', 'oauth2_nonce'); ?>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label for="oauth2_issuer"><?php _e('Issuer (iss)', 'wp-oauth2-server'); ?></label>
+                            </th>
+                            <td>
+                                <?php $current_issuer = get_option('oauth2_issuer', site_url()); ?>
+                                <input type="text" id="oauth2_issuer" name="oauth2_issuer" class="regular-text" value="<?php echo esc_attr($current_issuer); ?>" required>
+                                <p class="description"><?php _e('The issuer claim to be included in JWTs. Example: https://your-domain.com', 'wp-oauth2-server'); ?></p>
+                            </td>
+                        </tr>
+                    </table>
+                    <?php submit_button(__('Save Settings', 'wp-oauth2-server'), 'primary', 'save_settings'); ?>
+                </form>
             <?php else: ?>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
+                <?php if ($new_client): ?>
+                <div class="notice notice-info">
+                    <h3><?php _e('New Client Created', 'wp-oauth2-server'); ?></h3>
+                    <p><strong><?php _e('Client ID:', 'wp-oauth2-server'); ?></strong> <code><?php echo esc_html($new_client['client_id']); ?></code></p>
+                    <?php if ($new_client['client_secret']): ?>
+                    <p><strong><?php _e('Client Secret:', 'wp-oauth2-server'); ?></strong> <code><?php echo esc_html($new_client['client_secret']); ?></code></p>
+                    <?php endif; ?>
+                    <p class="description"><?php _e('Please save these credentials securely. The client secret will not be shown again.', 'wp-oauth2-server'); ?></p>
+                </div>
+                <?php endif; ?>
+
+                <h2><?php _e('Create New OAuth2 Client', 'wp-oauth2-server'); ?></h2>
+
+                <form method="post" class="oauth2-client-form">
+                    <?php wp_nonce_field('create_client', 'oauth2_nonce'); ?>
+
+                    <table class="form-table">
                         <tr>
-                            <th><?php _e('Client Name', 'wp-oauth2-server'); ?></th>
-                            <th><?php _e('Client ID', 'wp-oauth2-server'); ?></th>
-                            <th><?php _e('Type', 'wp-oauth2-server'); ?></th>
-                            <th><?php _e('Redirect URI', 'wp-oauth2-server'); ?></th>
-                            <th><?php _e('Created', 'wp-oauth2-server'); ?></th>
-                            <th><?php _e('Actions', 'wp-oauth2-server'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($clients as $client): ?>
-                        <tr>
-                            <td><strong><?php echo esc_html($client->name); ?></strong></td>
-                            <td><code><?php echo esc_html($client->id); ?></code></td>
+                            <th scope="row">
+                                <label for="client_name"><?php _e('Client Name', 'wp-oauth2-server'); ?></label>
+                            </th>
                             <td>
-                                <?php if ($client->is_confidential): ?>
-                                    <span class="dashicons dashicons-lock" title="<?php _e('Confidential', 'wp-oauth2-server'); ?>"></span>
-                                    <?php _e('Confidential', 'wp-oauth2-server'); ?>
-                                <?php else: ?>
-                                    <span class="dashicons dashicons-unlock" title="<?php _e('Public (PKCE)', 'wp-oauth2-server'); ?>"></span>
-                                    <?php _e('Public (PKCE)', 'wp-oauth2-server'); ?>
-                                <?php endif; ?>
-                            </td>
-                            <td><?php echo esc_html($client->redirect_uri); ?></td>
-                            <td><?php echo esc_html(mysql2date('Y/m/d g:i:s A', $client->created_at)); ?></td>
-                            <td>
-                                <a href="<?php echo wp_nonce_url(add_query_arg(['action' => 'delete', 'client_id' => $client->id]), 'delete_client_' . $client->id); ?>" 
-                                   class="button button-small button-link-delete" 
-                                   onclick="return confirm('<?php _e('Are you sure you want to delete this client?', 'wp-oauth2-server'); ?>')">
-                                    <?php _e('Delete', 'wp-oauth2-server'); ?>
-                                </a>
+                                <input type="text" id="client_name" name="client_name" class="regular-text" required>
+                                <p class="description"><?php _e('A human-readable name for this OAuth2 client.', 'wp-oauth2-server'); ?></p>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        <tr>
+                            <th scope="row">
+                                <label for="redirect_uri"><?php _e('Redirect URI', 'wp-oauth2-server'); ?></label>
+                            </th>
+                            <td>
+                                <input type="url" id="redirect_uri" name="redirect_uri" class="regular-text" required>
+                                <p class="description"><?php _e('The URL where users will be redirected after authorization.', 'wp-oauth2-server'); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="is_confidential"><?php _e('Client Type', 'wp-oauth2-server'); ?></label>
+                            </th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" id="is_confidential" name="is_confidential" value="1">
+                                    <?php _e('Confidential Client', 'wp-oauth2-server'); ?>
+                                </label>
+                                <p class="description"><?php _e('Check this for server-side applications that can securely store a client secret. Leave unchecked for public clients (mobile apps, SPAs) using PKCE.', 'wp-oauth2-server'); ?></p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <?php submit_button(__('Create Client', 'wp-oauth2-server'), 'primary', 'create_client'); ?>
+                </form>
+
+                <h2><?php _e('Existing OAuth2 Clients', 'wp-oauth2-server'); ?></h2>
+
+                <?php if (empty($clients)): ?>
+                    <p><?php _e('No OAuth2 clients found.', 'wp-oauth2-server'); ?></p>
+                <?php else: ?>
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th><?php _e('Client Name', 'wp-oauth2-server'); ?></th>
+                                <th><?php _e('Client ID', 'wp-oauth2-server'); ?></th>
+                                <th><?php _e('Type', 'wp-oauth2-server'); ?></th>
+                                <th><?php _e('Redirect URI', 'wp-oauth2-server'); ?></th>
+                                <th><?php _e('Created', 'wp-oauth2-server'); ?></th>
+                                <th><?php _e('Actions', 'wp-oauth2-server'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($clients as $client): ?>
+                            <tr>
+                                <td><strong><?php echo esc_html($client->name); ?></strong></td>
+                                <td><code><?php echo esc_html($client->id); ?></code></td>
+                                <td>
+                                    <?php if ($client->is_confidential): ?>
+                                        <span class="dashicons dashicons-lock" title="<?php _e('Confidential', 'wp-oauth2-server'); ?>"></span>
+                                        <?php _e('Confidential', 'wp-oauth2-server'); ?>
+                                    <?php else: ?>
+                                        <span class="dashicons dashicons-unlock" title="<?php _e('Public (PKCE)', 'wp-oauth2-server'); ?>"></span>
+                                        <?php _e('Public (PKCE)', 'wp-oauth2-server'); ?>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html($client->redirect_uri); ?></td>
+                                <td><?php echo esc_html(mysql2date('Y/m/d g:i:s A', $client->created_at)); ?></td>
+                                <td>
+                                    <a href="<?php echo wp_nonce_url(add_query_arg(['action' => 'delete', 'client_id' => $client->id]), 'delete_client_' . $client->id); ?>" 
+                                       class="button button-small button-link-delete" 
+                                       onclick="return confirm('<?php _e('Are you sure you want to delete this client?', 'wp-oauth2-server'); ?>')">
+                                        <?php _e('Delete', 'wp-oauth2-server'); ?>
+                                    </a>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
         

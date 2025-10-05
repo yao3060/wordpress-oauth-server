@@ -112,6 +112,39 @@ class AuthCodeEntity implements AuthCodeEntityInterface {
  */
 class AccessTokenEntity implements AccessTokenEntityInterface {
     use EntityTrait, TokenEntityTrait, AccessTokenTrait;
+
+    /**
+     * Override JWT conversion to include issuer (iss) from settings
+     */
+    private function convertToJWT(): \Lcobucci\JWT\Token
+    {
+        // Build JWT configuration similar to trait's initJwtConfiguration
+        $privateKeyContents = $this->privateKey->getKeyContents();
+        if ($privateKeyContents === '') {
+            throw new \RuntimeException('Private key is empty');
+        }
+
+        $jwtConfiguration = \Lcobucci\JWT\Configuration::forAsymmetricSigner(
+            new \Lcobucci\JWT\Signer\Rsa\Sha256(),
+            \Lcobucci\JWT\Signer\Key\InMemory::plainText($privateKeyContents, $this->privateKey->getPassPhrase() ?? ''),
+            \Lcobucci\JWT\Signer\Key\InMemory::plainText('empty', 'empty')
+        );
+
+        // Issuer from WP option (fallback to site_url)
+        $issuer = function_exists('get_option') ? get_option('oauth2_issuer', function_exists('site_url') ? site_url() : '') : '';
+
+        // Build token with iss added
+        return $jwtConfiguration->builder()
+            ->permittedFor($this->getClient()->getIdentifier())
+            ->identifiedBy($this->getIdentifier())
+            ->issuedAt(new \DateTimeImmutable())
+            ->canOnlyBeUsedAfter(new \DateTimeImmutable())
+            ->expiresAt($this->getExpiryDateTime())
+            ->relatedTo($this->getSubjectIdentifier())
+            ->issuedBy($issuer)
+            ->withClaim('scopes', $this->getScopes())
+            ->getToken($jwtConfiguration->signer(), $jwtConfiguration->signingKey());
+    }
 }
 
 /**

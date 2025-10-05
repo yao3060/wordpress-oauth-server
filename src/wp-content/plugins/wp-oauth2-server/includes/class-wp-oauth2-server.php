@@ -7,6 +7,7 @@ class WP_OAuth2_Server {
     public function __construct() {
         add_action('init', array($this, 'init_rewrite_rules'));
         add_action('template_redirect', array($this, 'handle_oauth2_requests'));
+        add_action('rest_api_init', array($this, 'register_rest_routes'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         
         // Initialize OAuth2 server
@@ -22,11 +23,49 @@ class WP_OAuth2_Server {
      * Initialize rewrite rules for OAuth2 endpoints
      */
     public function init_rewrite_rules() {
+        // Keep authorize via traditional template flow (renders HTML form)
         add_rewrite_rule('^oauth2/authorize/?$', 'index.php?oauth2_endpoint=authorize', 'top');
-        add_rewrite_rule('^oauth2/token/?$', 'index.php?oauth2_endpoint=token', 'top');
-        add_rewrite_rule('^oauth2/userinfo/?$', 'index.php?oauth2_endpoint=userinfo', 'top');
-        
+
+        // Map pretty paths to REST routes for JSON endpoints
+        add_rewrite_rule('^oauth2/token/?$', 'index.php?rest_route=/oauth2/v1/token', 'top');
+        add_rewrite_rule('^oauth2/userinfo/?$', 'index.php?rest_route=/oauth2/v1/userinfo', 'top');
+
         add_rewrite_tag('%oauth2_endpoint%', '([^&]+)');
+    }
+
+    /**
+     * Register REST API routes for OAuth2 endpoints
+     */
+    public function register_rest_routes() {
+        register_rest_route('oauth2/v1', '/token', array(
+            'methods'  => 'POST',
+            'permission_callback' => '__return_true',
+            'callback' => array($this, 'rest_token'),
+        ));
+
+        register_rest_route('oauth2/v1', '/userinfo', array(
+            'methods'  => 'GET',
+            'permission_callback' => '__return_true',
+            'callback' => array($this, 'rest_userinfo'),
+        ));
+    }
+
+    /**
+     * REST callback: /wp-json/oauth2/v1/token
+     */
+    public function rest_token(\WP_REST_Request $request) {
+        // Delegate to existing handler which outputs response and exits
+        $this->oauth2_server->handle_token_request();
+        return new \WP_REST_Response(null, 200); // Not reached
+    }
+
+    /**
+     * REST callback: /wp-json/oauth2/v1/userinfo
+     */
+    public function rest_userinfo(\WP_REST_Request $request) {
+        // Delegate to existing handler which outputs response and exits
+        $this->oauth2_server->handle_userinfo_request();
+        return new \WP_REST_Response(null, 200); // Not reached
     }
     
     /**
