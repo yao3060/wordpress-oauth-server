@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PKCE OAuth2 Client Example</title>
+    <script src="js/PKCEClient.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -52,6 +53,39 @@
             border-radius: 4px;
             margin: 10px 0;
         }
+        .silent-login-section {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .iframe-container {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+        .iframe-container.visible {
+            display: block;
+        }
+        #silentLoginFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-pending { background-color: #ffc107; }
+        .status-success { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
     </style>
 </head>
 <body>
@@ -73,6 +107,21 @@
         </label>
     </div>
     
+    <div class="silent-login-section">
+        <h3>Silent Login Test</h3>
+        <p>Test silent login using iframe. This will attempt to login without user interaction if the user is already authenticated.</p>
+        <div>
+            <span class="status-indicator status-pending" id="silentLoginStatus"></span>
+            <span id="silentLoginStatusText">Ready to test</span>
+        </div>
+        <button onclick="testSilentLogin()">Test Silent Login</button>
+        <button onclick="toggleIframeVisibility()">Toggle iframe Visibility</button>
+        <div class="iframe-container" id="iframeContainer">
+            <iframe id="silentLoginFrame" src="about:blank"></iframe>
+        </div>
+        <div id="silentLoginResult"></div>
+    </div>
+
     <div class="container">
         <h3>Step 1: Start Authorization</h3>
         <p>Click the button below to start the PKCE OAuth2 flow:</p>
@@ -102,128 +151,13 @@
     <div id="results"></div>
     
     <script>
-        class PKCEClient {
-            constructor(clientId, redirectUri, baseUrl) {
-                this.clientId = clientId;
-                this.redirectUri = redirectUri;
-                this.authorizationEndpoint = baseUrl + '/oauth2/authorize/';
-                this.tokenEndpoint = baseUrl + '/oauth2/token';
-                this.userinfoEndpoint = baseUrl + '/oauth2/userinfo';
-            }
-            
-            // Generate PKCE code verifier and challenge
-            async generatePKCE() {
-                const codeVerifier = this.base64URLEncode(crypto.getRandomValues(new Uint8Array(32)));
-                const encoder = new TextEncoder();
-                const data = encoder.encode(codeVerifier);
-                const digest = await crypto.subtle.digest('SHA-256', data);
-                const codeChallenge = this.base64URLEncode(new Uint8Array(digest));
-                
-                return {
-                    codeVerifier,
-                    codeChallenge,
-                    codeChallengeMethod: 'S256'
-                };
-            }
-            
-            // Base64 URL encode
-            base64URLEncode(buffer) {
-                return btoa(String.fromCharCode(...buffer))
-                    .replace(/\+/g, '-')
-                    .replace(/\//g, '_')
-                    .replace(/=/g, '');
-            }
-            
-            // Get authorization URL
-            async getAuthorizationUrl(scopes = ['read', 'profile']) {
-                const pkce = await this.generatePKCE();
-                const state = this.base64URLEncode(crypto.getRandomValues(new Uint8Array(16)));
-                
-                // Store for later use
-                localStorage.setItem('oauth2_code_verifier', pkce.codeVerifier);
-                localStorage.setItem('oauth2_state', state);
-                
-                const params = new URLSearchParams({
-                    response_type: 'code',
-                    client_id: this.clientId,
-                    redirect_uri: this.redirectUri,
-                    scope: scopes.join(' '),
-                    state: state,
-                    code_challenge: pkce.codeChallenge,
-                    code_challenge_method: pkce.codeChallengeMethod
-                });
-                
-                return `${this.authorizationEndpoint}?${params}`;
-            }
-            
-            // Exchange authorization code for access token
-            async exchangeCodeForToken(authorizationCode, state) {
-                const storedState = localStorage.getItem('oauth2_state');
-                if (state !== storedState) {
-                    throw new Error('Invalid state parameter');
-                }
-                
-                const codeVerifier = localStorage.getItem('oauth2_code_verifier');
-                if (!codeVerifier) {
-                    throw new Error('Code verifier not found');
-                }
-                
-                const params = new URLSearchParams({
-                    grant_type: 'authorization_code',
-                    client_id: this.clientId,
-                    code: authorizationCode,
-                    redirect_uri: this.redirectUri,
-                    code_verifier: codeVerifier
-                });
-
-                console.log('exchangeCodeForToken', this.tokenEndpoint, params.toString());
-                
-                const response = await fetch(this.tokenEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: params
-                });
-                
-                // Clean up
-                localStorage.removeItem('oauth2_code_verifier');
-                localStorage.removeItem('oauth2_state');
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error_description || error.error || 'Token exchange failed');
-                }
-                
-                const data = await response.json();
-                // Store tokens for refresh testing
-                if (data.access_token) localStorage.setItem('oauth2_access_token', data.access_token);
-                if (data.refresh_token) localStorage.setItem('oauth2_refresh_token', data.refresh_token);
-                if (data.expires_in) localStorage.setItem('oauth2_expires_in', String(data.expires_in));
-                updateTokenStatus();
-                return data;
-            }
-            
-            // Get user information
-            async getUserInfo(accessToken) {
-                const response = await fetch(this.userinfoEndpoint, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error_description || error.error || 'Failed to get user info');
-                }
-                
-                return await response.json();
-            }
-        }
         
         // Global client instance
         let client;
+        
+        // Silent login state
+        let silentLoginTimeout;
+        const SILENT_LOGIN_TIMEOUT = 10000; // 10 seconds timeout
         
         async function startAuthorization() {
             try {
@@ -317,6 +251,131 @@
             localStorage.removeItem('oauth2_expires_in');
             updateTokenStatus();
             showInfo('Stored tokens cleared');
+        }
+
+        // Silent login functions
+        async function testSilentLogin() {
+            try {
+                const baseUrl = document.getElementById('baseUrl').value.trim();
+                const clientId = document.getElementById('clientId').value.trim();
+                
+                if (!baseUrl || !clientId) {
+                    showError('Please fill in Base URL and Client ID');
+                    return;
+                }
+
+                updateSilentLoginStatus('pending', 'Testing silent login...');
+                
+                // Create iframe redirect URI for silent login
+                const silentRedirectUri = window.location.origin + window.location.pathname.replace('.html', '-silent.html');
+                
+                client = new PKCEClient(clientId, silentRedirectUri, baseUrl);
+                const authUrl = await client.getAuthorizationUrl(['read', 'profile'], 'none'); // prompt=none for silent login
+                
+                // Set up message listener for iframe communication
+                setupSilentLoginListener();
+                
+                // Load authorization URL in iframe
+                const iframe = document.getElementById('silentLoginFrame');
+                iframe.src = authUrl;
+                
+                // Set timeout for silent login
+                silentLoginTimeout = setTimeout(() => {
+                    updateSilentLoginStatus('error', 'Silent login timeout');
+                    showSilentLoginResult('error', 'Silent login timed out after ' + (SILENT_LOGIN_TIMEOUT / 1000) + ' seconds');
+                    iframe.src = 'about:blank';
+                }, SILENT_LOGIN_TIMEOUT);
+                
+            } catch (error) {
+                updateSilentLoginStatus('error', 'Error: ' + error.message);
+                showSilentLoginResult('error', 'Silent login failed: ' + error.message);
+            }
+        }
+
+        function setupSilentLoginListener() {
+            // Remove existing listener if any
+            window.removeEventListener('message', handleSilentLoginMessage);
+            // Add new listener
+            window.addEventListener('message', handleSilentLoginMessage);
+        }
+
+        async function handleSilentLoginMessage(event) {
+            // Verify origin for security
+            const baseUrl = document.getElementById('baseUrl').value.trim();
+            const expectedOrigin = new URL(baseUrl).origin;
+            
+            if (event.origin !== expectedOrigin && event.origin !== window.location.origin) {
+                console.warn('Received message from unexpected origin:', event.origin);
+                return;
+            }
+
+            const data = event.data;
+            
+            if (data.type === 'SILENT_LOGIN_SUCCESS' && data.code) {
+                clearTimeout(silentLoginTimeout);
+                updateSilentLoginStatus('success', 'Authorization code received');
+                
+                try {
+                    // Exchange code for token
+                    const tokenResponse = await client.exchangeCodeForToken(data.code, data.state);
+                    updateSilentLoginStatus('success', 'Silent login successful');
+                    showSilentLoginResult('success', 'Silent login completed successfully', {
+                        tokenResponse,
+                        userInfo: null
+                    });
+                    
+                    // Get user info
+                    if (tokenResponse.access_token) {
+                        const userInfo = await client.getUserInfo(tokenResponse.access_token);
+                        showSilentLoginResult('success', 'Silent login completed successfully', {
+                            tokenResponse,
+                            userInfo
+                        });
+                    }
+                    
+                } catch (error) {
+                    updateSilentLoginStatus('error', 'Token exchange failed');
+                    showSilentLoginResult('error', 'Token exchange failed: ' + error.message);
+                }
+                
+                // Clear iframe
+                document.getElementById('silentLoginFrame').src = 'about:blank';
+                
+            } else if (data.type === 'SILENT_LOGIN_ERROR') {
+                clearTimeout(silentLoginTimeout);
+                updateSilentLoginStatus('error', 'Silent login failed');
+                showSilentLoginResult('error', 'Silent login failed: ' + (data.error_description || data.error || 'Unknown error'));
+                
+                // Clear iframe
+                document.getElementById('silentLoginFrame').src = 'about:blank';
+            }
+        }
+
+        function updateSilentLoginStatus(status, message) {
+            const statusEl = document.getElementById('silentLoginStatus');
+            const textEl = document.getElementById('silentLoginStatusText');
+            
+            statusEl.className = 'status-indicator status-' + status;
+            textEl.textContent = message;
+        }
+
+        function showSilentLoginResult(type, message, data = null) {
+            const resultEl = document.getElementById('silentLoginResult');
+            const className = type === 'success' ? 'container success' : 
+                            type === 'error' ? 'container error' : 'container info';
+            
+            let content = `<h4>Silent Login Result</h4><p>${message}</p>`;
+            
+            if (data) {
+                content += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            
+            resultEl.innerHTML = `<div class="${className}">${content}</div>`;
+        }
+
+        function toggleIframeVisibility() {
+            const container = document.getElementById('iframeContainer');
+            container.classList.toggle('visible');
         }
 
         function updateTokenStatus() {
